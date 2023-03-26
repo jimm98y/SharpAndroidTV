@@ -9,6 +9,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 using System.IO;
+using System.Linq;
 
 namespace AndroidTVAPI
 {
@@ -20,7 +21,7 @@ namespace AndroidTVAPI
     {
         private const int PAIRING_PORT = 6467;
 
-        private GeneratedCertificate _clientCertificateWithKey = null;
+        private string _clientCertificatePem = null;
         private X509Certificate2 _clientCertificate;
         private X509Certificate2 _serverCertificate;
         private bool _isPairingInProgress = false;
@@ -30,12 +31,12 @@ namespace AndroidTVAPI
         /// </summary>
         /// <param name="ip">IP address. E.g. 192.168.1.99.</param>
         /// <exception cref="ArgumentNullException"></exception>
-        public AndroidTVPairingClient(string ip, GeneratedCertificate clientCertificate = null) : base(ip, PAIRING_PORT)
+        public AndroidTVPairingClient(string ip, string clientCertificate = null) : base(ip, PAIRING_PORT)
         { 
             if(clientCertificate != null)
             {
-                this._clientCertificateWithKey = clientCertificate;
-                this._clientCertificate = new X509Certificate2(this._clientCertificateWithKey.Certificate);
+                this._clientCertificatePem = clientCertificate;
+                this._clientCertificate = CertificateUtils.LoadCertificateFromPEM(clientCertificate);
             }
         }
 
@@ -51,7 +52,7 @@ namespace AndroidTVAPI
 
             if (this._clientCertificate == null)
             {
-                this._clientCertificateWithKey = CertificateUtils.GenerateCertificate(
+                this._clientCertificatePem = CertificateUtils.GenerateCertificate(
                     "atvremote",
                     "US",
                     "California",
@@ -61,7 +62,7 @@ namespace AndroidTVAPI
                     "example@google.com",
                     DateTime.UtcNow.Date,
                     DateTime.UtcNow.Date.AddYears(10));
-                SetClientCertificate(this._clientCertificateWithKey);
+                SetClientCertificate(this._clientCertificatePem);
             }
 
             var networkStream = GetNetworkStream();
@@ -88,21 +89,27 @@ namespace AndroidTVAPI
         /// Complete pairing process.
         /// </summary>
         /// <param name="code">Code shown on the TV.</param>
-        /// <returns>Client certificate paired with the TV encoded as byte array.</returns>
+        /// <returns>Client certificate paired with the TV encoded as PEM.</returns>
         /// <exception cref="InvalidOperationException"></exception>
-        public async Task<GeneratedCertificate> CompletePairing(byte[] code)
+        public async Task<string> CompletePairing(string code)
         {
             if(!this._isPairingInProgress)
                 throw new InvalidOperationException($"You must first start pairing by calling {nameof(InitiatePairing)}!");
 
+            if (string.IsNullOrWhiteSpace(code) || code.Length != 6)
+                throw new ArgumentException("Invalid code! Expected 6 letters.");
+            
+            // nonce are the last 4 characters of the code
+            byte[] nonce = Encoding.ASCII.GetBytes(code).Skip(2).ToArray();
+
             var networkStream = GetNetworkStream();
-            await SendSecretMessage(networkStream, code, this._clientCertificate, this._serverCertificate);
+            await SendSecretMessage(networkStream, nonce, this._clientCertificate, this._serverCertificate);
             byte[] response = await networkStream.ReadMessage();
             VerifyResult(response);
 
             this._isPairingInProgress = false;
 
-            return this._clientCertificateWithKey;
+            return this._clientCertificatePem;
         }
 
         private static byte[] GetAlphaValue(byte[] nonce, X509Certificate2 clientCertificate, X509Certificate2 serverCertificate)
@@ -142,10 +149,10 @@ namespace AndroidTVAPI
         {
             List<byte> message = new List<byte>()
             {
-                8, 2, // protocol version 2
+                8, 2,       // protocol version 2
                 16, 200, 1, // status code OK
                 194, 2, 34, 10, // ??
-                32, // size of the encoded secret
+                32,         // size of the encoded secret
             };
 
             message.AddRange(GetAlphaValue(nonce, clientCertificate, serverCertificate));
@@ -160,19 +167,19 @@ namespace AndroidTVAPI
         {
             List<byte> message = new List<byte>()
             {
-                8, 2, // protocol version 2
+                8, 2,       // protocol version 2
                 16, 200, 1, // status code OK
-                242, // message tag
-                1, // ??
-                8, // encoding tag?
-                10, // ??
-                4, // size??
-                8, // type tag
-                3, // 0 for ENCODING_TYPE_UNKNOWN, 1 for ENCODING_TYPE_ALPHANUMERIC, 2 for ENCODING_TYPE_NUMERIC, 3 for ENCODING_TYPE_HEXADECIMAL, 4 for ENCODING_TYPE_QRCODE
-                16, // size tag?
-                6, // symbol length?
-                16, // preferred role tag?
-                1 // 1 for ROLE_TYPE_INPUT
+                242,        // message tag
+                1,          // ??
+                8,          // encoding tag?
+                10,         // ??
+                4,          // size??
+                8,          // type tag
+                3,          // 0 for ENCODING_TYPE_UNKNOWN, 1 for ENCODING_TYPE_ALPHANUMERIC, 2 for ENCODING_TYPE_NUMERIC, 3 for ENCODING_TYPE_HEXADECIMAL, 4 for ENCODING_TYPE_QRCODE
+                16,         // size tag?
+                6,          // symbol length?
+                16,         // preferred role tag?
+                1           // 1 for ROLE_TYPE_INPUT
             };
 
             await networkStream.SendMessage(message.ToArray());
@@ -182,19 +189,19 @@ namespace AndroidTVAPI
         {
             List<byte> message = new List<byte>()
             {
-                8, 2, // protocol version 2
+                8, 2,       // protocol version 2
                 16, 200, 1, // status code OK
-                162, // message tag
-                1, // ??
-                8, // encoding output?
-                10, // ??
+                162,        // message tag
+                1,          // ??
+                8,          // encoding output?
+                10,         // ??
                 4,
                 8,
-                3, // 0 for ENCODING_TYPE_UNKNOWN, 1 for ENCODING_TYPE_ALPHANUMERIC, 2 for ENCODING_TYPE_NUMERIC, 3 for ENCODING_TYPE_HEXADECIMAL, 4 for ENCODING_TYPE_QRCODE
-                16, // size tag?
-                6, // symbol length?
-                24, // preferred role tag?
-                1 // 1 for ROLE_TYPE_INPUT
+                3,          // 0 for ENCODING_TYPE_UNKNOWN, 1 for ENCODING_TYPE_ALPHANUMERIC, 2 for ENCODING_TYPE_NUMERIC, 3 for ENCODING_TYPE_HEXADECIMAL, 4 for ENCODING_TYPE_QRCODE
+                16,         // size tag?
+                6,          // symbol length?
+                24,         // preferred role tag?
+                1           // 1 for ROLE_TYPE_INPUT
             };
 
             await networkStream.SendMessage(message.ToArray());
@@ -204,11 +211,11 @@ namespace AndroidTVAPI
         {
             List<byte> message = new List<byte>()
             {
-                8, 2, // protocol version 2
+                8, 2,       // protocol version 2
                 16, 200, 1, // status code OK
-                82, // message tag
-                43, // length of the message (changed later)
-                10, // service name tag
+                82,         // message tag
+                43,         // length of the message (changed later)
+                10,         // service name tag
             };
 
             //21,   105,110,102,111,46,107,111,100,111,110,111,46,97,115,115,105,115,116,97,110,116, // 21 size, service name: info.kodono.assistant

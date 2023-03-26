@@ -150,10 +150,10 @@ namespace AndroidTVAPI
         /// Ctor.
         /// </summary>
         /// <param name="ip">IP address. E.g. 192.168.1.99.</param>
-        /// <param name="clientCertificate">Client certificate.</param>
+        /// <param name="clientCertificate">Client certificate encoded as PEM.</param>
         /// <param name="mac"></param>
         /// <exception cref="ArgumentNullException"></exception>
-        public AndroidTVClient(string ip, GeneratedCertificate clientCertificate, string mac = null) : base(ip, REMOTE_PORT, clientCertificate)
+        public AndroidTVClient(string ip, string clientCertificate, string mac = null) : base(ip, REMOTE_PORT, clientCertificate)
         {
             if (clientCertificate == null)
                 throw new ArgumentNullException(nameof(clientCertificate));

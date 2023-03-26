@@ -1,13 +1,7 @@
-﻿using Org.BouncyCastle.Crypto;
-using Org.BouncyCastle.Crypto.Parameters;
-using Org.BouncyCastle.Pkcs;
-using Org.BouncyCastle.Security;
-using System;
-using System.IO;
+﻿using System;
 using System.Net.Security;
 using System.Net.Sockets;
 using System.Security.Authentication;
-using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 
 namespace AndroidTVAPI
@@ -24,7 +18,7 @@ namespace AndroidTVAPI
         public AndroidTVClientBase(string ip, int port) : this(ip, port, null)
         { }
 
-        public AndroidTVClientBase(string ip, int port, GeneratedCertificate clientCertificate)
+        public AndroidTVClientBase(string ip, int port, string clientCertificate)
         {
             if (string.IsNullOrWhiteSpace(ip))
                 throw new ArgumentNullException(nameof(ip));
@@ -43,39 +37,12 @@ namespace AndroidTVAPI
             return this._ip;
         }
 
-        protected void SetClientCertificate(GeneratedCertificate clientCertificate)
+        protected void SetClientCertificate(string clientCertificate)
         {
             if (this._clientCertificate != null)
                 throw new InvalidOperationException("Client certificate already set!");
 
-            Org.BouncyCastle.X509.X509Certificate cert = new Org.BouncyCastle.X509.X509Certificate(clientCertificate.Certificate);
-            var privateKey = (RsaKeyParameters)PrivateKeyFactory.CreateKey(clientCertificate.PrivateKey);
-
-            var generatedCertificate = GetX509CertificateWithPrivateKey(cert, privateKey);
-            this._clientCertificate = generatedCertificate;
-        }
-
-        private static X509Certificate2 GetX509CertificateWithPrivateKey(Org.BouncyCastle.X509.X509Certificate bouncyCastleCert, AsymmetricKeyParameter privateKey)
-        {
-            string alias = bouncyCastleCert.SubjectDN.ToString();
-            Pkcs12Store store = new Pkcs12StoreBuilder().Build();
-
-            X509CertificateEntry certEntry = new X509CertificateEntry(bouncyCastleCert);
-            store.SetCertificateEntry(alias, certEntry);
-
-            AsymmetricKeyEntry keyEntry = new AsymmetricKeyEntry(privateKey);
-            store.SetKeyEntry(alias, keyEntry, new X509CertificateEntry[] { certEntry });
-
-            byte[] certificateData;
-            string password = Guid.NewGuid().ToString();
-            using (MemoryStream memoryStream = new MemoryStream())
-            {
-                store.Save(memoryStream, password.ToCharArray(), new SecureRandom());
-                memoryStream.Flush();
-                certificateData = memoryStream.ToArray();
-            }
-
-            return new X509Certificate2(certificateData, password, X509KeyStorageFlags.Exportable);
+            this._clientCertificate = CertificateUtils.LoadCertificateFromPEM(clientCertificate); ;
         }
 
         protected SslStream GetNetworkStream()
@@ -97,7 +64,7 @@ namespace AndroidTVAPI
                 {
                     this._clientCertificate
                 },
-                SslProtocols.Tls12,
+                SslProtocols.Tls12, // required to make a successful connection
                 false);
 
             return this._networkStream;
