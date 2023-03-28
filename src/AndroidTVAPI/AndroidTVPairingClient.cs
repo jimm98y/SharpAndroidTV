@@ -111,7 +111,7 @@ namespace AndroidTVAPI
         private static byte[] GetAlphaValue(string code, X509Certificate2 clientCertificate, X509Certificate2 serverCertificate)
         {
             // nonce are the last 4 characters of the code displayed on the TV
-            byte[] nonce = StringToByteArray(code.Substring(2)).ToArray();
+            byte[] nonce = FromHexString(code.Substring(2)).ToArray();
 
             var client = Org.BouncyCastle.Security.DotNetUtilities.FromX509Certificate(clientCertificate);
             var server = Org.BouncyCastle.Security.DotNetUtilities.FromX509Certificate(serverCertificate);
@@ -322,7 +322,7 @@ namespace AndroidTVAPI
             return array.Skip(skip).ToArray();
         }
 
-        private static byte[] StringToByteArray(string hex)
+        private static byte[] FromHexString(string hex)
         {
             return Enumerable.Range(0, hex.Length)
                              .Where(x => x % 2 == 0)

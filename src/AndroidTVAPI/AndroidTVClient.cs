@@ -133,7 +133,7 @@ namespace AndroidTVAPI
                 case 194:
                     {
                         // C2-02-02-08-01
-                        // 01 indicates it's on
+                        // 1 indicates it's on
                         configuration.IsOn = message[4] == 1;
                     }
                     break;
