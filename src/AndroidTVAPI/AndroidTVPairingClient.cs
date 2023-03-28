@@ -10,6 +10,10 @@ using System.Text;
 using System.Threading.Tasks;
 using System.IO;
 using System.Linq;
+using Org.BouncyCastle.Crypto.Parameters;
+using Org.BouncyCastle.Crypto.Digests;
+using Org.BouncyCastle.Crypto.Macs;
+using static System.Net.Mime.MediaTypeNames;
 
 namespace AndroidTVAPI
 {
@@ -22,7 +26,6 @@ namespace AndroidTVAPI
         private const int PAIRING_PORT = 6467;
 
         private string _clientCertificatePem = null;
-        private X509Certificate2 _clientCertificate;
         private X509Certificate2 _serverCertificate;
         private bool _isPairingInProgress = false;
 
@@ -36,7 +39,6 @@ namespace AndroidTVAPI
             if(clientCertificate != null)
             {
                 this._clientCertificatePem = clientCertificate;
-                this._clientCertificate = CertificateUtils.LoadCertificateFromPEM(clientCertificate);
             }
         }
 
@@ -50,7 +52,7 @@ namespace AndroidTVAPI
                 this._serverCertificate = GetPublicCertificate(GetIP(), PAIRING_PORT);
             }
 
-            if (this._clientCertificate == null)
+            if (this.ClientCertificate == null)
             {
                 this._clientCertificatePem = CertificateUtils.GenerateCertificate(
                     "atvremote",
@@ -99,11 +101,8 @@ namespace AndroidTVAPI
             if (string.IsNullOrWhiteSpace(code) || code.Length != 6)
                 throw new ArgumentException("Invalid code! Expected 6 letters.");
             
-            // nonce are the last 4 characters of the code
-            byte[] nonce = Encoding.ASCII.GetBytes(code).Skip(2).ToArray();
-
             var networkStream = GetNetworkStream();
-            await SendSecretMessage(networkStream, nonce, this._clientCertificate, this._serverCertificate);
+            await SendSecretMessage(networkStream, code, this.ClientCertificate, this._serverCertificate);
             byte[] response = await networkStream.ReadMessage();
             VerifyResult(response);
 
@@ -112,40 +111,71 @@ namespace AndroidTVAPI
             return this._clientCertificatePem;
         }
 
-        private static byte[] GetAlphaValue(byte[] nonce, X509Certificate2 clientCertificate, X509Certificate2 serverCertificate)
+        public static byte[] StringToByteArray(string hex)
         {
-            // nonce are the last 4 characters of the code displayed on the TV
-            var publicKey = (RSACryptoServiceProvider)clientCertificate.PublicKey.Key;
-            var publicKey2 = (RSACryptoServiceProvider)serverCertificate.PublicKey.Key;
-
-            var rSAPublicKey = publicKey.ExportParameters(false);
-            var rSAPublicKey2 = publicKey2.ExportParameters(false);
-
-            using (SHA256 instance = SHA256.Create())
-            {
-                byte[] clientModulus = rSAPublicKey.Modulus;
-                byte[] clientExponent = rSAPublicKey.Exponent;
-                byte[] serverModulus = rSAPublicKey2.Modulus;
-                byte[] serverExponent = rSAPublicKey2.Exponent;
-
-                Debug.WriteLine("Hash inputs: ");
-                Debug.WriteLine("client modulus: " + BitConverter.ToString(clientModulus));
-                Debug.WriteLine("client exponent: " + BitConverter.ToString(clientExponent));
-                Debug.WriteLine("server modulus: " + BitConverter.ToString(serverModulus));
-                Debug.WriteLine("server exponent: " + BitConverter.ToString(serverExponent));
-                Debug.WriteLine("nonce: " + BitConverter.ToString(nonce));
-
-                instance.TransformBlock(clientModulus, 0, clientModulus.Length, null, 0);
-                instance.TransformBlock(clientExponent, 0, clientExponent.Length, null, 0);
-                instance.TransformBlock(serverModulus, 0, serverModulus.Length, null, 0);
-                instance.TransformBlock(serverExponent, 0, serverExponent.Length, null, 0);
-                instance.TransformFinalBlock(nonce, 0, nonce.Length);
-
-                return instance.Hash;
-            }
+            return Enumerable.Range(0, hex.Length)
+                             .Where(x => x % 2 == 0)
+                             .Select(x => Convert.ToByte(hex.Substring(x, 2), 16))
+                             .ToArray();
         }
 
-        private static async Task SendSecretMessage(Stream networkStream, byte[] nonce, X509Certificate2 clientCertificate, X509Certificate2 serverCertificate)
+        private static byte[] GetAlphaValue(string code, X509Certificate2 clientCertificate, X509Certificate2 serverCertificate)
+        {
+            // nonce are the last 4 characters of the code displayed on the TV
+            byte[] nonce = StringToByteArray(code.Substring(2)).ToArray();
+
+            var client = Org.BouncyCastle.Security.DotNetUtilities.FromX509Certificate(clientCertificate);
+            var server = Org.BouncyCastle.Security.DotNetUtilities.FromX509Certificate(serverCertificate);
+
+            var publicKey = client.GetPublicKey();
+            var publicKey2 = server.GetPublicKey();
+
+            var rSAPublicKey = (RsaKeyParameters)publicKey;
+            var rSAPublicKey2 = (RsaKeyParameters)publicKey2;
+
+            var instance = new Sha256Digest();
+           
+            byte[] clientModulus = RemoveLeadingZeroBytes(rSAPublicKey.Modulus.Abs().ToByteArray());
+            byte[] clientExponent = RemoveLeadingZeroBytes(rSAPublicKey.Exponent.Abs().ToByteArray());
+            byte[] serverModulus = RemoveLeadingZeroBytes(rSAPublicKey2.Modulus.Abs().ToByteArray());
+            byte[] serverExponent = RemoveLeadingZeroBytes(rSAPublicKey2.Exponent.Abs().ToByteArray());
+
+            Debug.WriteLine("Hash inputs: ");
+            Debug.WriteLine("client modulus: " + BitConverter.ToString(clientModulus));
+            Debug.WriteLine("client exponent: " + BitConverter.ToString(clientExponent));
+            Debug.WriteLine("server modulus: " + BitConverter.ToString(serverModulus));
+            Debug.WriteLine("server exponent: " + BitConverter.ToString(serverExponent));
+            Debug.WriteLine("nonce: " + BitConverter.ToString(nonce));
+
+            instance.BlockUpdate(clientModulus, 0, clientModulus.Length);
+            instance.BlockUpdate(clientExponent, 0, clientExponent.Length);
+            instance.BlockUpdate(serverModulus, 0, serverModulus.Length);
+            instance.BlockUpdate(serverExponent, 0, serverExponent.Length);
+            instance.BlockUpdate(nonce, 0, nonce.Length);
+
+            byte[] hash = new byte[instance.GetDigestSize()];
+            instance.DoFinal(hash, 0);
+                
+            Debug.WriteLine("hash: " + BitConverter.ToString(hash));
+
+            return hash;
+        }
+
+        private static byte[] RemoveLeadingZeroBytes(byte[] array)
+        {
+            int skip = 0;
+            for (int i = 0; i < array.Length; i++)
+            {
+                if(array[i] != 0)
+                {
+                    skip = i; break;
+                }
+            }
+
+            return array.Skip(skip).ToArray();
+        }
+
+        private static async Task SendSecretMessage(Stream networkStream, string code, X509Certificate2 clientCertificate, X509Certificate2 serverCertificate)
         {
             List<byte> message = new List<byte>()
             {
@@ -155,7 +185,7 @@ namespace AndroidTVAPI
                 32,         // size of the encoded secret
             };
 
-            message.AddRange(GetAlphaValue(nonce, clientCertificate, serverCertificate));
+            message.AddRange(GetAlphaValue(code, clientCertificate, serverCertificate));
 
             if (message.Count != 42)
                 throw new InvalidOperationException("Invalid pairing message!");

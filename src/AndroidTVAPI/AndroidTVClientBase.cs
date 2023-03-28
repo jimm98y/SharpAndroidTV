@@ -12,6 +12,7 @@ namespace AndroidTVAPI
         private readonly int _port;
         private SslStream _networkStream;
         private X509Certificate2 _clientCertificate = null;
+        protected X509Certificate2 ClientCertificate { get { return _clientCertificate; } } 
 
         private TcpClient _client;
 
