@@ -62,7 +62,7 @@ namespace AndroidTVAPI
             await networkStream.SendMessage(clientConfig);
             response = await networkStream.ReadMessage();
 
-            if (response[7] != 18 || response[8] != 0)
+            if (response[0] != 18 || response[1] != 0)
                 throw new Exception("Unknown error!");
 
             // send second message

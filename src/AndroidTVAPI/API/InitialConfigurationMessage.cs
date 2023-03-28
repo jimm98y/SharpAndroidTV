@@ -63,6 +63,8 @@ namespace AndroidTVAPI.API
                     int sizeOfPackageName = br.ReadByte();
                     string appName = Encoding.ASCII.GetString(br.ReadBytes(sizeOfPackageName));
 
+                    int unknown3 = br.ReadByte(); // 50
+
                     int sizeOfAppVersion = br.ReadByte();
                     string appVersion = Encoding.ASCII.GetString(br.ReadBytes(sizeOfAppVersion));
 
@@ -79,7 +81,7 @@ namespace AndroidTVAPI.API
                 {
                     bw.Write((byte)10); // tag
                     bw.Write((byte)0); // dummy size
-                    bw.Write(Unknown); // 8, 238, 4, 18 ??
+                    bw.Write(new byte[] { 8, 238, 4, 18 }); // 8, 238, 4, 18 ??
                     bw.Write((byte)0); // dummy submessage size
                     bw.Write((byte)10); // tag
 
@@ -105,6 +107,8 @@ namespace AndroidTVAPI.API
                     bw.Write((byte)appName.Length);
                     bw.Write(appName);
 
+                    bw.Write((byte)50);
+
                     byte[] appVersion = Encoding.ASCII.GetBytes(AppVersion);
                     bw.Write((byte)appVersion.Length);
                     bw.Write(appVersion);
@@ -113,7 +117,7 @@ namespace AndroidTVAPI.API
                 byte[] message = ms.ToArray();
 
                 // patch the dummy sizes
-                message[1] = (byte)(message.Length - 1);
+                message[1] = (byte)(message.Length - 2);
                 message[6] = (byte)(message.Length - 7);
 
                 return message;
