@@ -1,7 +1,9 @@
 ﻿using AndroidTVAPI.API;
+using AndroidTVAPI.Model;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -22,10 +24,8 @@ namespace AndroidTVAPI
     {
         private const int REMOTE_PORT = 6466;
 
-        private string _mac;
-
         private bool _isConnected = false;
-        private InitialConfigurationMessage _serverConfig;
+        private AndroidTVConfiguraton _configuration = null;
 
         private Task _keepAlive;
 
@@ -34,14 +34,11 @@ namespace AndroidTVAPI
         /// </summary>
         /// <param name="ip">IP address. E.g. 192.168.1.99.</param>
         /// <param name="clientCertificate">Client certificate encoded as PEM.</param>
-        /// <param name="mac"></param>
         /// <exception cref="ArgumentNullException"></exception>
-        public AndroidTVClient(string ip, string clientCertificate, string mac = null) : base(ip, REMOTE_PORT, clientCertificate)
+        public AndroidTVClient(string ip, string clientCertificate) : base(ip, REMOTE_PORT, clientCertificate)
         {
             if (clientCertificate == null)
                 throw new ArgumentNullException(nameof(clientCertificate));
-
-            this._mac = mac; // when null, we'll try to use ARP to resolve it
         }
 
         private async Task Connect()
@@ -56,30 +53,34 @@ namespace AndroidTVAPI
 
             // read the first message
             response = await networkStream.ReadMessage();
-            _serverConfig = InitialConfigurationMessage.FromBytes(response);
+
+            var serverConfig = InitialConfigurationMessage.FromBytes(response);
+            _configuration = new AndroidTVConfiguraton()
+            {
+                ModelName = serverConfig.ModelName,
+                VendorName = serverConfig.VendorName,
+                Version = serverConfig.Version,
+                AppName = serverConfig.AppName,
+                AppVersion = serverConfig.AppVersion
+            };
 
             var clientConfig = new InitialConfigurationMessage("Assistant Cloud", "Kodono", "10", "info.kodono.assistant", "1.0.0").ToBytes();
             await networkStream.SendMessage(clientConfig);
             response = await networkStream.ReadMessage();
 
+            // we should get [18, 0] indicating success
             if (response[0] != 18 || response[1] != 0)
                 throw new Exception("Unknown error!");
 
             // send second message
-            await networkStream.SendMessage(new byte[]
-            {
-                18, 3, 8, 238, 4
-            });
+            await networkStream.SendMessage(new byte[] { 18, 3, 8, 238, 4 });
 
             // server should respond with 3 messages
-            byte[] response1 = await networkStream.ReadMessage();
-            Debug.WriteLine($"Response 1: {BitConverter.ToString(response1)}");
-
-            byte[] response2 = await networkStream.ReadMessage();
-            Debug.WriteLine($"Response 2: {BitConverter.ToString(response2)}");
-
-            byte[] response3 = await networkStream.ReadMessage();
-            Debug.WriteLine($"Response 3: {BitConverter.ToString(response3)}");
+            for (int i = 0; i < 3; i++)
+            {
+                response = await networkStream.ReadMessage();
+                UpdateConfiguration(_configuration, response);
+            }
 
             _isConnected = true;
 
@@ -107,6 +108,60 @@ namespace AndroidTVAPI
             }
         }
 
+        private static void UpdateConfiguration(AndroidTVConfiguraton configuration, byte[] message)
+        {
+            Debug.WriteLine($"Configuration message received: {BitConverter.ToString(message)}");
+
+            switch (message[0])
+            {
+                case 146:
+                    {
+                        // indicates the player name and the volume level
+                        // TODO
+                    }
+                    break;
+
+                case 162:
+                    {
+                        // A2-01-0E-0A-0C-62-0A-63-6F-6D-2E-74-63-6C-2E-74-76
+                        // currently opened application
+                        int length = message[6];
+                        configuration.CurrentApplication = Encoding.ASCII.GetString(message.Skip(7).Take(length).ToArray());
+                    }
+                    break;
+
+                case 194:
+                    {
+                        // C2-02-02-08-01
+                        // 01 indicates it's on
+                        configuration.IsOn = message[4] == 1;
+                    }
+                    break;
+
+                default:
+                    throw new NotSupportedException($"Unknown message {message[0]} received");
+            }
+        }
+
+        /// <summary>
+        /// Get the current TV configuration.
+        /// </summary>
+        /// <returns><see cref="AndroidTVConfiguraton"/>.</returns>
+        /// <exception cref="Exception"></exception>
+        public AndroidTVConfiguraton GetConfiguration()
+        {
+            if (!_isConnected)
+                throw new Exception("Not connected!");
+
+            return _configuration;
+        }
+
+        /// <summary>
+        /// Press key.
+        /// </summary>
+        /// <param name="code">Key code.</param>
+        /// <param name="action">Action - down/up or press.</param>
+        /// <returns>Awaitable <see cref="Task"/>.</returns>
         public async Task PressKey(byte code, KeyAction action)
         {
             await Connect();
@@ -135,6 +190,11 @@ namespace AndroidTVAPI
             }
         }
 
+        /// <summary>
+        /// Start an application using protocol activation.
+        /// </summary>
+        /// <param name="content">Content.</param>
+        /// <returns>Awaitable <see cref="Task"/>.</returns>
         public async Task StartApplication(string content)
         {
             await Connect();
@@ -160,20 +220,6 @@ namespace AndroidTVAPI
         }
 
         #region Wake on LAN
-
-        /// <summary>
-        /// Turn on the TV using Wake On Lan feature. 
-        /// </summary>
-        /// <returns>Awaitable <see cref="Task"/>.</returns>
-        /// <remarks>
-        /// The Android TV must support the Wake On LAN functionality. Turn on Settings -> Network and Internet -> Remote Start or similar option depending upon your model.
-        /// Tested on TCL C835.
-        /// </remarks>
-        /// <exception cref="NotSupportedException"></exception>
-        public async Task TurnOnAsync()
-        {
-            this._mac = await TurnOnAsync(GetIP(), this._mac);
-        }
 
         /// <summary>
         /// Turn on the TV using Wake On Lan feature. 

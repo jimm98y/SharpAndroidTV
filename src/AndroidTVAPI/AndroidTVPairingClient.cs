@@ -5,15 +5,12 @@ using System.Net.Security;
 using System.Net.Sockets;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
-using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 using System.IO;
 using System.Linq;
 using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.Crypto.Digests;
-using Org.BouncyCastle.Crypto.Macs;
-using static System.Net.Mime.MediaTypeNames;
 
 namespace AndroidTVAPI
 {
@@ -111,14 +108,6 @@ namespace AndroidTVAPI
             return this._clientCertificatePem;
         }
 
-        public static byte[] StringToByteArray(string hex)
-        {
-            return Enumerable.Range(0, hex.Length)
-                             .Where(x => x % 2 == 0)
-                             .Select(x => Convert.ToByte(hex.Substring(x, 2), 16))
-                             .ToArray();
-        }
-
         private static byte[] GetAlphaValue(string code, X509Certificate2 clientCertificate, X509Certificate2 serverCertificate)
         {
             // nonce are the last 4 characters of the code displayed on the TV
@@ -159,20 +148,6 @@ namespace AndroidTVAPI
             Debug.WriteLine("hash: " + BitConverter.ToString(hash));
 
             return hash;
-        }
-
-        private static byte[] RemoveLeadingZeroBytes(byte[] array)
-        {
-            int skip = 0;
-            for (int i = 0; i < array.Length; i++)
-            {
-                if(array[i] != 0)
-                {
-                    skip = i; break;
-                }
-            }
-
-            return array.Skip(skip).ToArray();
         }
 
         private static async Task SendSecretMessage(Stream networkStream, string code, X509Certificate2 clientCertificate, X509Certificate2 serverCertificate)
@@ -330,6 +305,29 @@ namespace AndroidTVAPI
 
                 return cert;
             }
+        }
+
+        private static byte[] RemoveLeadingZeroBytes(byte[] array)
+        {
+            int skip = 0;
+            for (int i = 0; i < array.Length; i++)
+            {
+                if (array[i] != 0)
+                {
+                    skip = i; 
+                    break;
+                }
+            }
+
+            return array.Skip(skip).ToArray();
+        }
+
+        private static byte[] StringToByteArray(string hex)
+        {
+            return Enumerable.Range(0, hex.Length)
+                             .Where(x => x % 2 == 0)
+                             .Select(x => Convert.ToByte(hex.Substring(x, 2), 16))
+                             .ToArray();
         }
     }
 }
