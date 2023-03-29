@@ -9,13 +9,6 @@ using System.Threading.Tasks;
 
 namespace AndroidTVAPI
 {
-    public enum KeyAction : byte
-    {
-        Down = 1,
-        Up = 2,
-        Press = 3 // key code channel up/down
-    }
-
     /// <summary>
     /// Android TV client. 
     /// </summary>
@@ -159,10 +152,10 @@ namespace AndroidTVAPI
         /// <summary>
         /// Press key.
         /// </summary>
-        /// <param name="code">Key code.</param>
+        /// <param name="code">One of the <see cref="KeyCodes"/>.</param>
         /// <param name="action">Action - down/up or press.</param>
         /// <returns>Awaitable <see cref="Task"/>.</returns>
-        public async Task PressKey(byte code, KeyAction action)
+        public async Task PressKey(int code, KeyAction action)
         {
             await Connect();
 
@@ -174,7 +167,7 @@ namespace AndroidTVAPI
                await networkStream.SendMessage(new byte[]
                 {
                     82, 4, 8, // the command tag
-                    code,
+                    (byte)code, // TODO: code > 255?
                     16, (byte)action
                 });
             }
@@ -183,7 +176,7 @@ namespace AndroidTVAPI
                 await networkStream.SendMessage(new byte[]
                 {
                     82, 5, 8, // the command tag
-                    code,
+                    (byte) code, // TODO: code > 255?
                     1,
                     16, (byte)action
                 });
