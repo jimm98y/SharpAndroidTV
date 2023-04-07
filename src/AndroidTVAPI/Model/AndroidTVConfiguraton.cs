@@ -44,5 +44,27 @@
         /// Current volume.
         /// </summary>
         public int CurrentVolume { get; internal set; }
+
+        /// <summary>
+        /// Ctor.
+        /// </summary>
+        public AndroidTVConfiguraton()
+        { }
+
+        /// <summary>
+        /// Copy ctor.
+        /// </summary>
+        /// <param name="config"><see cref="AndroidTVConfiguraton"/>.</param>
+        public AndroidTVConfiguraton(AndroidTVConfiguraton config)
+        {
+            this.ModelName = config.ModelName;
+            this.VendorName = config.VendorName;
+            this.Version = config.Version;
+            this.AppName = config.AppName;
+            this.AppVersion = config.AppVersion;    
+            this.IsOn = config.IsOn;    
+            this.CurrentApplication = config.CurrentApplication;    
+            this.CurrentVolume = config.CurrentVolume;
+        }
     }
 }

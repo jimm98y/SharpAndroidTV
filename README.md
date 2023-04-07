@@ -19,7 +19,7 @@ string certificate = await tvPairingClient.CompletePairingAsync("1234AB");
 
 ## AndroidTVClient
 
-### Turn on TV
+### Turn on the TV
 To turn on the TV if you know the MAC address:
 ```
 await AndroidTVClient.TurnOnAsync("192.168.1.90", "FF:FF:FF:FF:FF:FF");

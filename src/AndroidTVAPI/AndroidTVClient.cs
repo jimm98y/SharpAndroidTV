@@ -21,8 +21,10 @@ namespace AndroidTVAPI
 
         private AndroidTVConfiguraton _configuration = null;
 
-        private Task _keepAlive;
+        private Task _keepAlive = null;
         private CancellationTokenSource _cancellationTokenSource = new CancellationTokenSource();
+
+        public event EventHandler<ConfigurationChangedEventArgs> ConfigurationChanged;
 
         /// <summary>
         /// Ctor.
@@ -80,6 +82,8 @@ namespace AndroidTVAPI
                 UpdateConfiguration(_configuration, response);
             }
 
+            ConfigurationChanged?.Invoke(this, new ConfigurationChangedEventArgs(new AndroidTVConfiguraton(_configuration)));
+
             // ping/pong + state updates (volume level)
             _keepAlive = KeepAliveAsync(networkStream, cancellationToken);
         }
@@ -92,7 +96,6 @@ namespace AndroidTVAPI
 
                 while (!token.IsCancellationRequested)
                 {
-                    // TODO: add cancelation
                     int read = await networkStream.ReadAsync(buffer, 0, buffer.Length, token);
                     if (read > 0)
                     {
@@ -109,6 +112,7 @@ namespace AndroidTVAPI
                             byte currentVolume = buffer[7];
                             _configuration.CurrentVolume = currentVolume;
                             Debug.WriteLine($"Updated volume: {currentVolume}");
+                            ConfigurationChanged?.Invoke(this, new ConfigurationChangedEventArgs(new AndroidTVConfiguraton(_configuration)));
                         }
                     }
                 }
@@ -185,7 +189,7 @@ namespace AndroidTVAPI
                 await networkStream.SendMessageAsync(new byte[]
                 {
                     82, 4, 8, // the command tag
-                    code, // TODO: code > 255?
+                    code,     // TODO: code > 255?
                     16, (byte)action
                 }, cancellationToken);
             }
@@ -194,7 +198,7 @@ namespace AndroidTVAPI
                 await networkStream.SendMessageAsync(new byte[]
                 {
                     82, 5, 8, // the command tag
-                    code, // TODO: code > 255?
+                    code,     // TODO: code > 255?
                     1,
                     16, (byte)action
                 }, cancellationToken);
@@ -218,8 +222,8 @@ namespace AndroidTVAPI
             List<byte> message = new List<byte>()
             {
                 210, 5, // the command tag
-                0, // dummy size
-                10, // tag
+                0,      // dummy size
+                10,     // tag
             };
 
             byte[] contentBytes = Encoding.ASCII.GetBytes(content);
