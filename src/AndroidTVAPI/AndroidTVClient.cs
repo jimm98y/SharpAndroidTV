@@ -211,7 +211,7 @@ namespace AndroidTVAPI
             message.AddRange(contentBytes);
 
             // fix size
-            message[1] = (byte)(message.Count - 3);
+            message[2] = (byte)(message.Count - 3);
 
             await networkStream.SendMessage(message.ToArray());
         }
