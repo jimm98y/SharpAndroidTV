@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Net.Security;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -77,36 +78,39 @@ namespace AndroidTVAPI
 
             _isConnected = true;
 
-            if (_keepAlive == null)
-            {
-                _keepAlive = Task.Run(async () =>
-                {
-                    byte[] buffer = new byte[128];
+            // ping/pong + state updates (volume level)
+            _keepAlive = Task.Run(KeepAlive(networkStream));
+        }
 
-                    while (_isConnected)
+        private Func<Task> KeepAlive(SslStream networkStream)
+        {
+            return async () =>
+            {
+                byte[] buffer = new byte[128];
+
+                while (_isConnected)
+                {
+                    // TODO: add cancelation
+                    int read = await networkStream.ReadAsync(buffer, 0, buffer.Length);
+                    if (read > 0)
                     {
-                        // TODO: add cancelation
-                        int read = await networkStream.ReadAsync(buffer, 0, buffer.Length);
-                        if(read > 0)
+                        Debug.WriteLine($"Message received: {BitConverter.ToString(buffer)}");
+
+                        if (buffer[0] == 8) // if we've received a ping
                         {
-                            Debug.WriteLine($"Message received: {BitConverter.ToString(buffer)}");
-                            
-                            if (buffer[0] == 8) // if we've received a ping
-                            {
-                                // send pong
-                                await networkStream.SendMessage(new byte[] { 74, 2, 8, 25 });
-                                Debug.WriteLine("Sent pong");
-                            }
-                            else if (buffer[0] == 0x20)
-                            {
-                                byte currentVolume = buffer[7];
-                                _configuration.CurrentVolume = currentVolume;
-                                Debug.WriteLine($"Updated volume: {currentVolume}");
-                            }
+                            // send pong
+                            await networkStream.SendMessage(new byte[] { 74, 2, 8, 25 });
+                            Debug.WriteLine("Sent pong");
+                        }
+                        else if (buffer[0] == 0x20)
+                        {
+                            byte currentVolume = buffer[7];
+                            _configuration.CurrentVolume = currentVolume;
+                            Debug.WriteLine($"Updated volume: {currentVolume}");
                         }
                     }
-                });
-            }
+                }
+            };
         }
 
         private static void UpdateConfiguration(AndroidTVConfiguraton configuration, byte[] message)
