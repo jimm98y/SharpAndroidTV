@@ -91,13 +91,17 @@ namespace AndroidTVAPI
                         {
                             Debug.WriteLine($"Message received: {BitConverter.ToString(buffer)}");
                             
-                            // if we've received a ping
-                            if (buffer[0] == 8)
+                            if (buffer[0] == 8) // if we've received a ping
                             {
-                                Debug.WriteLine("Sending pong");
-
                                 // send pong
                                 await networkStream.SendMessage(new byte[] { 74, 2, 8, 25 });
+                                Debug.WriteLine("Sent pong");
+                            }
+                            else if (buffer[0] == 0x20)
+                            {
+                                byte currentVolume = buffer[7];
+                                _configuration.CurrentVolume = currentVolume;
+                                Debug.WriteLine($"Updated volume: {currentVolume}");
                             }
                         }
                     }
@@ -114,7 +118,9 @@ namespace AndroidTVAPI
                 case 146:
                     {
                         // indicates the player name and the volume level
-                        // TODO
+                        byte currentVolume = message[message.Length - 3];
+                        configuration.CurrentVolume = currentVolume;
+                        Debug.WriteLine($"Current volume: {currentVolume}");
                     }
                     break;
 
