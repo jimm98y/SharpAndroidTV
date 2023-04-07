@@ -89,9 +89,13 @@ namespace AndroidTVAPI
                         int read = await networkStream.ReadAsync(buffer, 0, buffer.Length);
                         if(read > 0)
                         {
+                            Debug.WriteLine($"Message received: {BitConverter.ToString(buffer)}");
+                            
                             // if we've received a ping
-                            if (buffer[0] == 8 && buffer[1] == 66 && buffer[2] == 6)
+                            if (buffer[0] == 8)
                             {
+                                Debug.WriteLine("Sending pong");
+
                                 // send pong
                                 await networkStream.SendMessage(new byte[] { 74, 2, 8, 25 });
                             }
