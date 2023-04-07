@@ -159,7 +159,7 @@ namespace AndroidTVAPI
         /// <param name="code">One of the <see cref="KeyCodes"/>.</param>
         /// <param name="action">Action - down/up or press.</param>
         /// <returns>Awaitable <see cref="Task"/>.</returns>
-        public async Task PressKey(int code, KeyAction action)
+        public async Task PressKey(byte code, KeyAction action)
         {
             await Connect();
 
@@ -171,7 +171,7 @@ namespace AndroidTVAPI
                await networkStream.SendMessage(new byte[]
                 {
                     82, 4, 8, // the command tag
-                    (byte)code, // TODO: code > 255?
+                    code, // TODO: code > 255?
                     16, (byte)action
                 });
             }
@@ -180,7 +180,7 @@ namespace AndroidTVAPI
                 await networkStream.SendMessage(new byte[]
                 {
                     82, 5, 8, // the command tag
-                    (byte) code, // TODO: code > 255?
+                    code, // TODO: code > 255?
                     1,
                     16, (byte)action
                 });
