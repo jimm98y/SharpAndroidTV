@@ -81,7 +81,7 @@ namespace AndroidTVAPI
             {
                 _keepAlive = Task.Run(async () =>
                 {
-                    byte[] buffer = new byte[1024];
+                    byte[] buffer = new byte[128];
 
                     while (_isConnected)
                     {
