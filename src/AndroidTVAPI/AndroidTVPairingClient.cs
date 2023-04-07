@@ -11,6 +11,7 @@ using System.IO;
 using System.Linq;
 using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.Crypto.Digests;
+using System.Threading;
 
 namespace AndroidTVAPI
 {
@@ -25,6 +26,8 @@ namespace AndroidTVAPI
         private string _clientCertificatePem = null;
         private X509Certificate2 _serverCertificate;
         private bool _isPairingInProgress = false;
+
+        private CancellationTokenSource _cancellationTokenSource = new CancellationTokenSource();
 
         /// <summary>
         /// Ctor.
@@ -65,20 +68,21 @@ namespace AndroidTVAPI
             }
 
             var networkStream = GetNetworkStream();
+            var cancellationToken = _cancellationTokenSource.Token;
 
             byte[] response;
 
-            await SendPairingMessage(networkStream);
-            response = await networkStream.ReadMessage();
+            await SendPairingMessage(networkStream, cancellationToken);
+            response = await networkStream.ReadMessage(cancellationToken);
             VerifyResult(response);
 
-            await SendOptionMessage(networkStream);
-            response = await networkStream.ReadMessage();
+            await SendOptionMessage(networkStream, cancellationToken);
+            response = await networkStream.ReadMessage(cancellationToken);
             VerifyResult(response);
 
             // TV should go to the pairing mode now
-            await SendConfigurationMessage(networkStream);
-            response = await networkStream.ReadMessage();
+            await SendConfigurationMessage(networkStream, cancellationToken);
+            response = await networkStream.ReadMessage(cancellationToken);
             VerifyResult(response);
 
             this._isPairingInProgress = true;
@@ -99,8 +103,8 @@ namespace AndroidTVAPI
                 throw new ArgumentException("Invalid code! Expected 6 letters.");
             
             var networkStream = GetNetworkStream();
-            await SendSecretMessage(networkStream, code, this.ClientCertificate, this._serverCertificate);
-            byte[] response = await networkStream.ReadMessage();
+            await SendSecretMessage(networkStream, code, this.ClientCertificate, this._serverCertificate, _cancellationTokenSource.Token);
+            byte[] response = await networkStream.ReadMessage(_cancellationTokenSource.Token);
             VerifyResult(response);
 
             this._isPairingInProgress = false;
@@ -150,7 +154,7 @@ namespace AndroidTVAPI
             return hash;
         }
 
-        private static async Task SendSecretMessage(Stream networkStream, string code, X509Certificate2 clientCertificate, X509Certificate2 serverCertificate)
+        private static async Task SendSecretMessage(Stream networkStream, string code, X509Certificate2 clientCertificate, X509Certificate2 serverCertificate, CancellationToken token)
         {
             List<byte> message = new List<byte>()
             {
@@ -165,10 +169,10 @@ namespace AndroidTVAPI
             if (message.Count != 42)
                 throw new InvalidOperationException("Invalid pairing message!");
 
-            await networkStream.SendMessage(message.ToArray());
+            await networkStream.SendMessage(message.ToArray(), token);
         }
 
-        private static async Task SendConfigurationMessage(Stream networkStream)
+        private static async Task SendConfigurationMessage(Stream networkStream, CancellationToken token)
         {
             List<byte> message = new List<byte>()
             {
@@ -187,10 +191,10 @@ namespace AndroidTVAPI
                 1           // 1 for ROLE_TYPE_INPUT
             };
 
-            await networkStream.SendMessage(message.ToArray());
+            await networkStream.SendMessage(message.ToArray(), token);
         }
 
-        private static async Task SendOptionMessage(Stream networkStream)
+        private static async Task SendOptionMessage(Stream networkStream, CancellationToken token)
         {
             List<byte> message = new List<byte>()
             {
@@ -209,10 +213,10 @@ namespace AndroidTVAPI
                 1           // 1 for ROLE_TYPE_INPUT
             };
 
-            await networkStream.SendMessage(message.ToArray());
+            await networkStream.SendMessage(message.ToArray(), token);
         }
 
-        private static async Task SendPairingMessage(Stream networkStream)
+        private static async Task SendPairingMessage(Stream networkStream, CancellationToken token)
         {
             List<byte> message = new List<byte>()
             {
@@ -238,7 +242,7 @@ namespace AndroidTVAPI
             // length of the message minus version length
             message[6] = (byte)(message.Count - 2);
 
-            await networkStream.SendMessage(message.ToArray());
+            await networkStream.SendMessage(message.ToArray(), token);
         }
 
         private static void VerifyResult(byte[] response)
@@ -328,6 +332,20 @@ namespace AndroidTVAPI
                              .Where(x => x % 2 == 0)
                              .Select(x => Convert.ToByte(hex.Substring(x, 2), 16))
                              .ToArray();
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            try
+            {
+                _cancellationTokenSource.Cancel();
+            }
+            catch(Exception ex)
+            {
+                Debug.Write(ex.Message);
+            }
+
+            base.Dispose(disposing);
         }
     }
 }

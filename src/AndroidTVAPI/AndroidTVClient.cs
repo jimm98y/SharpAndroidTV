@@ -6,6 +6,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Net.Security;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace AndroidTVAPI
@@ -18,10 +19,10 @@ namespace AndroidTVAPI
     {
         private const int REMOTE_PORT = 6466;
 
-        private bool _isConnected = false;
         private AndroidTVConfiguraton _configuration = null;
 
         private Task _keepAlive;
+        private CancellationTokenSource _cancellationTokenSource = new CancellationTokenSource();
 
         /// <summary>
         /// Ctor.
@@ -37,16 +38,19 @@ namespace AndroidTVAPI
 
         private async Task Connect()
         {
-            if(_isConnected) 
+            if(_keepAlive != null)
                 return;
 
-            byte[] response;
+            var cancellationToken = _cancellationTokenSource.Token;
+
+            if (cancellationToken.IsCancellationRequested) 
+                return;
 
             // initiate connection
             var networkStream = GetNetworkStream();
 
             // read the first message
-            response = await networkStream.ReadMessage();
+            byte[] response = await networkStream.ReadMessage(cancellationToken);
 
             var serverConfig = InitialConfigurationMessage.FromBytes(response);
             _configuration = new AndroidTVConfiguraton()
@@ -59,39 +63,37 @@ namespace AndroidTVAPI
             };
 
             var clientConfig = new InitialConfigurationMessage("Assistant Cloud", "Kodono", "10", "info.kodono.assistant", "1.0.0").ToBytes();
-            await networkStream.SendMessage(clientConfig);
-            response = await networkStream.ReadMessage();
+            await networkStream.SendMessage(clientConfig, cancellationToken);
+            response = await networkStream.ReadMessage(cancellationToken);
 
             // we should get [18, 0] indicating success
             if (response[0] != 18 || response[1] != 0)
                 throw new Exception("Unknown error!");
 
             // send second message
-            await networkStream.SendMessage(new byte[] { 18, 3, 8, 238, 4 });
+            await networkStream.SendMessage(new byte[] { 18, 3, 8, 238, 4 }, cancellationToken);
 
             // server should respond with 3 messages
             for (int i = 0; i < 3; i++)
             {
-                response = await networkStream.ReadMessage();
+                response = await networkStream.ReadMessage(cancellationToken);
                 UpdateConfiguration(_configuration, response);
             }
 
-            _isConnected = true;
-
             // ping/pong + state updates (volume level)
-            _keepAlive = Task.Run(KeepAlive(networkStream));
+            _keepAlive = KeepAlive(networkStream, cancellationToken);
         }
 
-        private Func<Task> KeepAlive(SslStream networkStream)
+        private Task KeepAlive(SslStream networkStream, CancellationToken token)
         {
-            return async () =>
+            return Task.Run(async () =>
             {
                 byte[] buffer = new byte[128];
 
-                while (_isConnected)
+                while (!token.IsCancellationRequested)
                 {
                     // TODO: add cancelation
-                    int read = await networkStream.ReadAsync(buffer, 0, buffer.Length);
+                    int read = await networkStream.ReadAsync(buffer, 0, buffer.Length, token);
                     if (read > 0)
                     {
                         Debug.WriteLine($"Message received: {BitConverter.ToString(buffer)}");
@@ -99,10 +101,10 @@ namespace AndroidTVAPI
                         if (buffer[0] == 8) // if we've received a ping
                         {
                             // send pong
-                            await networkStream.SendMessage(new byte[] { 74, 2, 8, 25 });
+                            await networkStream.SendMessage(new byte[] { 74, 2, 8, 25 }, token);
                             Debug.WriteLine("Sent pong");
                         }
-                        else if (buffer[0] == 0x20)
+                        else if (buffer[0] == 32)
                         {
                             byte currentVolume = buffer[7];
                             _configuration.CurrentVolume = currentVolume;
@@ -110,7 +112,7 @@ namespace AndroidTVAPI
                         }
                     }
                 }
-            };
+            });
         }
 
         private static void UpdateConfiguration(AndroidTVConfiguraton configuration, byte[] message)
@@ -157,7 +159,7 @@ namespace AndroidTVAPI
         /// <exception cref="Exception"></exception>
         public AndroidTVConfiguraton GetConfiguration()
         {
-            if (!_isConnected)
+            if (_keepAlive == null)
                 throw new Exception("Not connected!");
 
             return _configuration;
@@ -173,17 +175,19 @@ namespace AndroidTVAPI
         {
             await Connect();
 
+            var cancellationToken = _cancellationTokenSource.Token;
+
             // initiate connection
             var networkStream = GetNetworkStream();
 
             if (action != KeyAction.Press)
             {
-               await networkStream.SendMessage(new byte[]
+                await networkStream.SendMessage(new byte[]
                 {
                     82, 4, 8, // the command tag
                     code, // TODO: code > 255?
                     16, (byte)action
-                });
+                }, cancellationToken);
             }
             else
             {
@@ -193,7 +197,7 @@ namespace AndroidTVAPI
                     code, // TODO: code > 255?
                     1,
                     16, (byte)action
-                });
+                }, cancellationToken);
             }
         }
 
@@ -206,15 +210,17 @@ namespace AndroidTVAPI
         {
             await Connect();
 
+            var cancellationToken = _cancellationTokenSource.Token;
+
             // initiate connection
             var networkStream = GetNetworkStream();
-
+            
             List<byte> message = new List<byte>()
-                {
-                    210, 5, // the command tag
-                    0, // dummy size
-                    10, // tag
-                };
+            {
+                210, 5, // the command tag
+                0, // dummy size
+                10, // tag
+            };
 
             byte[] contentBytes = Encoding.ASCII.GetBytes(content);
             message.Add((byte)contentBytes.Length);
@@ -223,7 +229,7 @@ namespace AndroidTVAPI
             // fix size
             message[2] = (byte)(message.Count - 3);
 
-            await networkStream.SendMessage(message.ToArray());
+            await networkStream.SendMessage(message.ToArray(), cancellationToken);
         }
 
         #region Wake on LAN
@@ -271,7 +277,16 @@ namespace AndroidTVAPI
 
         protected override void Dispose(bool disposing)
         {
-            _isConnected = false;
+            try
+            {
+                _cancellationTokenSource.Cancel();
+            }
+            catch(Exception ex)
+            {
+                Debug.Write(ex.Message);
+            }
+
+            _cancellationTokenSource.Dispose();
             base.Dispose(disposing);
         }
     }
