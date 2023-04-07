@@ -36,7 +36,7 @@ namespace AndroidTVAPI
                 throw new ArgumentNullException(nameof(clientCertificate));
         }
 
-        private async Task Connect()
+        private async Task ConnectAsync()
         {
             if(_keepAlive != null)
                 return;
@@ -50,7 +50,7 @@ namespace AndroidTVAPI
             var networkStream = GetNetworkStream();
 
             // read the first message
-            byte[] response = await networkStream.ReadMessage(cancellationToken);
+            byte[] response = await networkStream.ReadMessageAsync(cancellationToken);
 
             var serverConfig = InitialConfigurationMessage.FromBytes(response);
             _configuration = new AndroidTVConfiguraton()
@@ -63,28 +63,28 @@ namespace AndroidTVAPI
             };
 
             var clientConfig = new InitialConfigurationMessage("Assistant Cloud", "Kodono", "10", "info.kodono.assistant", "1.0.0").ToBytes();
-            await networkStream.SendMessage(clientConfig, cancellationToken);
-            response = await networkStream.ReadMessage(cancellationToken);
+            await networkStream.SendMessageAsync(clientConfig, cancellationToken);
+            response = await networkStream.ReadMessageAsync(cancellationToken);
 
             // we should get [18, 0] indicating success
             if (response[0] != 18 || response[1] != 0)
                 throw new Exception("Unknown error!");
 
             // send second message
-            await networkStream.SendMessage(new byte[] { 18, 3, 8, 238, 4 }, cancellationToken);
+            await networkStream.SendMessageAsync(new byte[] { 18, 3, 8, 238, 4 }, cancellationToken);
 
             // server should respond with 3 messages
             for (int i = 0; i < 3; i++)
             {
-                response = await networkStream.ReadMessage(cancellationToken);
+                response = await networkStream.ReadMessageAsync(cancellationToken);
                 UpdateConfiguration(_configuration, response);
             }
 
             // ping/pong + state updates (volume level)
-            _keepAlive = KeepAlive(networkStream, cancellationToken);
+            _keepAlive = KeepAliveAsync(networkStream, cancellationToken);
         }
 
-        private Task KeepAlive(SslStream networkStream, CancellationToken token)
+        private Task KeepAliveAsync(SslStream networkStream, CancellationToken token)
         {
             return Task.Run(async () =>
             {
@@ -101,7 +101,7 @@ namespace AndroidTVAPI
                         if (buffer[0] == 8) // if we've received a ping
                         {
                             // send pong
-                            await networkStream.SendMessage(new byte[] { 74, 2, 8, 25 }, token);
+                            await networkStream.SendMessageAsync(new byte[] { 74, 2, 8, 25 }, token);
                             Debug.WriteLine("Sent pong");
                         }
                         else if (buffer[0] == 32)
@@ -171,9 +171,9 @@ namespace AndroidTVAPI
         /// <param name="code">One of the <see cref="KeyCodes"/>.</param>
         /// <param name="action">Action - down/up or press.</param>
         /// <returns>Awaitable <see cref="Task"/>.</returns>
-        public async Task PressKey(byte code, KeyAction action)
+        public async Task PressKeyAsync(byte code, KeyAction action)
         {
-            await Connect();
+            await ConnectAsync();
 
             var cancellationToken = _cancellationTokenSource.Token;
 
@@ -182,7 +182,7 @@ namespace AndroidTVAPI
 
             if (action != KeyAction.Press)
             {
-                await networkStream.SendMessage(new byte[]
+                await networkStream.SendMessageAsync(new byte[]
                 {
                     82, 4, 8, // the command tag
                     code, // TODO: code > 255?
@@ -191,7 +191,7 @@ namespace AndroidTVAPI
             }
             else
             {
-                await networkStream.SendMessage(new byte[]
+                await networkStream.SendMessageAsync(new byte[]
                 {
                     82, 5, 8, // the command tag
                     code, // TODO: code > 255?
@@ -206,9 +206,9 @@ namespace AndroidTVAPI
         /// </summary>
         /// <param name="content">Content.</param>
         /// <returns>Awaitable <see cref="Task"/>.</returns>
-        public async Task StartApplication(string content)
+        public async Task StartApplicationAsync(string content)
         {
-            await Connect();
+            await ConnectAsync();
 
             var cancellationToken = _cancellationTokenSource.Token;
 
@@ -229,7 +229,7 @@ namespace AndroidTVAPI
             // fix size
             message[2] = (byte)(message.Count - 3);
 
-            await networkStream.SendMessage(message.ToArray(), cancellationToken);
+            await networkStream.SendMessageAsync(message.ToArray(), cancellationToken);
         }
 
         #region Wake on LAN

@@ -7,7 +7,7 @@ namespace AndroidTVAPI
 {
     internal static class SslStreamExtensions
     {
-        public static async Task SendMessage(this Stream networkStream, byte[] messageBytes, CancellationToken token)
+        public static async Task SendMessageAsync(this Stream networkStream, byte[] messageBytes, CancellationToken token)
         {
             int length = messageBytes.Length;
             byte[] lengthBytes = new byte[] { (byte)length };
@@ -16,7 +16,7 @@ namespace AndroidTVAPI
             await networkStream.FlushAsync(token);
         }
 
-        public static async Task<byte[]> ReadBytes(this Stream networkStream, int count, CancellationToken token)
+        public static async Task<byte[]> ReadBytesAsync(this Stream networkStream, int count, CancellationToken token)
         {
             byte[] bytes = new byte[count];
             int readCount = 0;
@@ -37,11 +37,11 @@ namespace AndroidTVAPI
             return bytes;
         }
 
-        public static async Task<byte[]> ReadMessage(this Stream networkStream, CancellationToken token)
+        public static async Task<byte[]> ReadMessageAsync(this Stream networkStream, CancellationToken token)
         {
-            byte[] len = await ReadBytes(networkStream, 1, token);
+            byte[] len = await ReadBytesAsync(networkStream, 1, token);
             int length = len[0];
-            byte[] messageBytes = await ReadBytes(networkStream, length, token);
+            byte[] messageBytes = await ReadBytesAsync(networkStream, length, token);
             return messageBytes;
         }
     }

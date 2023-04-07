@@ -45,7 +45,7 @@ namespace AndroidTVAPI
         /// <summary>
         /// Initiates pairing with the TV.
         /// </summary>
-        public async Task InitiatePairing()
+        public async Task InitiatePairingAsync()
         {
             if (this._serverCertificate == null)
             {
@@ -72,17 +72,17 @@ namespace AndroidTVAPI
 
             byte[] response;
 
-            await SendPairingMessage(networkStream, cancellationToken);
-            response = await networkStream.ReadMessage(cancellationToken);
+            await SendPairingMessageAsync(networkStream, cancellationToken);
+            response = await networkStream.ReadMessageAsync(cancellationToken);
             VerifyResult(response);
 
-            await SendOptionMessage(networkStream, cancellationToken);
-            response = await networkStream.ReadMessage(cancellationToken);
+            await SendOptionMessageAsync(networkStream, cancellationToken);
+            response = await networkStream.ReadMessageAsync(cancellationToken);
             VerifyResult(response);
 
             // TV should go to the pairing mode now
-            await SendConfigurationMessage(networkStream, cancellationToken);
-            response = await networkStream.ReadMessage(cancellationToken);
+            await SendConfigurationMessageAsync(networkStream, cancellationToken);
+            response = await networkStream.ReadMessageAsync(cancellationToken);
             VerifyResult(response);
 
             this._isPairingInProgress = true;
@@ -94,17 +94,17 @@ namespace AndroidTVAPI
         /// <param name="code">Code shown on the TV.</param>
         /// <returns>Client certificate paired with the TV encoded as PEM.</returns>
         /// <exception cref="InvalidOperationException"></exception>
-        public async Task<string> CompletePairing(string code)
+        public async Task<string> CompletePairingAsync(string code)
         {
             if(!this._isPairingInProgress)
-                throw new InvalidOperationException($"You must first start pairing by calling {nameof(InitiatePairing)}!");
+                throw new InvalidOperationException($"You must first start pairing by calling {nameof(InitiatePairingAsync)}!");
 
             if (string.IsNullOrWhiteSpace(code) || code.Length != 6)
                 throw new ArgumentException("Invalid code! Expected 6 letters.");
             
             var networkStream = GetNetworkStream();
-            await SendSecretMessage(networkStream, code, this.ClientCertificate, this._serverCertificate, _cancellationTokenSource.Token);
-            byte[] response = await networkStream.ReadMessage(_cancellationTokenSource.Token);
+            await SendSecretMessageAsync(networkStream, code, this.ClientCertificate, this._serverCertificate, _cancellationTokenSource.Token);
+            byte[] response = await networkStream.ReadMessageAsync(_cancellationTokenSource.Token);
             VerifyResult(response);
 
             this._isPairingInProgress = false;
@@ -154,7 +154,7 @@ namespace AndroidTVAPI
             return hash;
         }
 
-        private static async Task SendSecretMessage(Stream networkStream, string code, X509Certificate2 clientCertificate, X509Certificate2 serverCertificate, CancellationToken token)
+        private static async Task SendSecretMessageAsync(Stream networkStream, string code, X509Certificate2 clientCertificate, X509Certificate2 serverCertificate, CancellationToken token)
         {
             List<byte> message = new List<byte>()
             {
@@ -169,10 +169,10 @@ namespace AndroidTVAPI
             if (message.Count != 42)
                 throw new InvalidOperationException("Invalid pairing message!");
 
-            await networkStream.SendMessage(message.ToArray(), token);
+            await networkStream.SendMessageAsync(message.ToArray(), token);
         }
 
-        private static async Task SendConfigurationMessage(Stream networkStream, CancellationToken token)
+        private static async Task SendConfigurationMessageAsync(Stream networkStream, CancellationToken token)
         {
             List<byte> message = new List<byte>()
             {
@@ -191,10 +191,10 @@ namespace AndroidTVAPI
                 1           // 1 for ROLE_TYPE_INPUT
             };
 
-            await networkStream.SendMessage(message.ToArray(), token);
+            await networkStream.SendMessageAsync(message.ToArray(), token);
         }
 
-        private static async Task SendOptionMessage(Stream networkStream, CancellationToken token)
+        private static async Task SendOptionMessageAsync(Stream networkStream, CancellationToken token)
         {
             List<byte> message = new List<byte>()
             {
@@ -213,10 +213,10 @@ namespace AndroidTVAPI
                 1           // 1 for ROLE_TYPE_INPUT
             };
 
-            await networkStream.SendMessage(message.ToArray(), token);
+            await networkStream.SendMessageAsync(message.ToArray(), token);
         }
 
-        private static async Task SendPairingMessage(Stream networkStream, CancellationToken token)
+        private static async Task SendPairingMessageAsync(Stream networkStream, CancellationToken token)
         {
             List<byte> message = new List<byte>()
             {
@@ -227,14 +227,12 @@ namespace AndroidTVAPI
                 10,         // service name tag
             };
 
-            //21,   105,110,102,111,46,107,111,100,111,110,111,46,97,115,115,105,115,116,97,110,116, // 21 size, service name: info.kodono.assistant
             byte[] serviceName = Encoding.ASCII.GetBytes("info.kodono.assistant");
             message.Add((byte)serviceName.Length);
             message.AddRange(serviceName);
 
             message.Add(18); // tag device name
 
-            //13,   105, 110, 116, 101, 114, 102, 97, 99, 101, 32, 119, 101, 98, // 13 size, client name: interface web
             byte[] clientName = Encoding.ASCII.GetBytes("interface web");
             message.Add((byte)clientName.Length);
             message.AddRange(clientName);
@@ -242,7 +240,7 @@ namespace AndroidTVAPI
             // length of the message minus version length
             message[6] = (byte)(message.Count - 2);
 
-            await networkStream.SendMessage(message.ToArray(), token);
+            await networkStream.SendMessageAsync(message.ToArray(), token);
         }
 
         private static void VerifyResult(byte[] response)
