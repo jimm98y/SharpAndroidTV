@@ -1,4 +1,4 @@
-# AndroidTVAPI
+# SharpAndroidTV
 Client to control Android TV.
 
 ## AndroidTVPairingClient
