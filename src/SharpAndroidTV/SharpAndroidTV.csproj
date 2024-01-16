@@ -7,16 +7,16 @@
 		<Authors>Lukas Volf</Authors>
 		<Description>Client to control Android TV</Description>
 		<PackageReadmeFile>README.md</PackageReadmeFile>
-		<PackageTags>adts;aac;codec;audio-processing;netstandard;mp4</PackageTags>
+		<PackageTags>androidtv;tv;netstandard20</PackageTags>
 		<PackageProjectUrl>https://github.com/jimm98y/SharpAndroidTV</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/jimm98y/SharpAndroidTV</RepositoryUrl>
 		<PackageLicenseExpression>MIT</PackageLicenseExpression>
-		<AssemblyVersion>0.0.1</AssemblyVersion>
-		<FileVersion>0.0.1</FileVersion>
+		<AssemblyVersion>0.0.2</AssemblyVersion>
+		<FileVersion>0.0.2</FileVersion>
 		<RepositoryType>git</RepositoryType>
 		<Copyright>MIT</Copyright>
 		<NeutralLanguage>en-US</NeutralLanguage>
-		<Version>0.0.1</Version>
+		<Version>0.0.2</Version>
 	</PropertyGroup>
 
 	<ItemGroup>
@@ -27,7 +27,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
-	  <PackageReference Include="BouncyCastle.Cryptography" Version="2.1.1" />
+	  <PackageReference Include="BouncyCastle.Cryptography" Version="2.2.1" />
 	</ItemGroup>
 
 </Project>
