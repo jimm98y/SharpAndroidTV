@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Net.Security;
+using System.Security.Authentication;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -32,7 +33,17 @@ namespace AndroidTVAPI
         /// <param name="ip">IP address. E.g. 192.168.1.99.</param>
         /// <param name="clientCertificate">Client certificate encoded as PEM.</param>
         /// <exception cref="ArgumentNullException"></exception>
-        public AndroidTVClient(string ip, string clientCertificate) : base(ip, REMOTE_PORT, clientCertificate)
+        public AndroidTVClient(string ip, string clientCertificate) : this(ip, SslProtocols.Tls12, clientCertificate)
+        { }
+
+        /// <summary>
+        /// Ctor.
+        /// </summary>
+        /// <param name="ip">IP address. E.g. 192.168.1.99.</param>
+        /// <param name="clientCertificate">Client certificate encoded as PEM.</param>
+        /// <param name="tls">TLS version to use.</param>
+        /// <exception cref="ArgumentNullException"></exception>
+        public AndroidTVClient(string ip, SslProtocols tls, string clientCertificate) : base(ip, REMOTE_PORT, tls, clientCertificate)
         {
             if (clientCertificate == null)
                 throw new ArgumentNullException(nameof(clientCertificate));

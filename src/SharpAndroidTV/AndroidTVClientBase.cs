@@ -11,21 +11,23 @@ namespace AndroidTVAPI
         private readonly string _ip;
         private readonly int _port;
         private SslStream _networkStream;
+        private SslProtocols _tls = SslProtocols.Tls12;
         private X509Certificate2 _clientCertificate = null;
         protected X509Certificate2 ClientCertificate { get { return _clientCertificate; } } 
 
         private TcpClient _client;
 
-        public AndroidTVClientBase(string ip, int port) : this(ip, port, null)
+        public AndroidTVClientBase(string ip, int port, SslProtocols tls) : this(ip, port, tls, null)
         { }
 
-        public AndroidTVClientBase(string ip, int port, string clientCertificate)
+        public AndroidTVClientBase(string ip, int port, SslProtocols tls, string clientCertificate)
         {
             if (string.IsNullOrWhiteSpace(ip))
                 throw new ArgumentNullException(nameof(ip));
 
             this._ip = ip;
             this._port = port;
+            this._tls = tls;
 
             if (clientCertificate != null)
             {
@@ -65,7 +67,7 @@ namespace AndroidTVAPI
                 {
                     this._clientCertificate
                 },
-                SslProtocols.Tls12, // required to make a successful connection
+                this._tls, // required to make a successful connection
                 false);
 
             return this._networkStream;

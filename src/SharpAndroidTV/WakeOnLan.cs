@@ -44,7 +44,7 @@ namespace AndroidTVAPI
                     {
                         unicastIPAddressInformation =
                             ipProperties.UnicastAddresses
-                                .Where((u) => u.Address.AddressFamily == AddressFamily.InterNetwork && !ipProperties.GetIPv4Properties().IsAutomaticPrivateAddressingActive)
+                                .Where((u) => u.Address.AddressFamily == AddressFamily.InterNetwork)
                                 .FirstOrDefault();
                     }
 

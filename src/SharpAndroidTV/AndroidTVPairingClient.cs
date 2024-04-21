@@ -33,10 +33,21 @@ namespace AndroidTVAPI
         /// Ctor.
         /// </summary>
         /// <param name="ip">IP address. E.g. 192.168.1.99.</param>
+        /// <param name="clientCertificate">Client certificate.</param>
         /// <exception cref="ArgumentNullException"></exception>
-        public AndroidTVPairingClient(string ip, string clientCertificate = null) : base(ip, PAIRING_PORT)
-        { 
-            if(clientCertificate != null)
+        public AndroidTVPairingClient(string ip, string clientCertificate = null) : this(ip, SslProtocols.Tls12, clientCertificate)
+        { }
+
+        /// <summary>
+        /// Ctor.
+        /// </summary>
+        /// <param name="ip">IP address. E.g. 192.168.1.99.</param>
+        /// <param name="tls">TLS version to use.</param>
+        /// <param name="clientCertificate">Client certificate.</param>
+        /// <exception cref="ArgumentNullException"></exception>
+        public AndroidTVPairingClient(string ip, SslProtocols tls, string clientCertificate = null) : base(ip, PAIRING_PORT, tls)
+        {
+            if (clientCertificate != null)
             {
                 this._clientCertificatePem = clientCertificate;
             }
