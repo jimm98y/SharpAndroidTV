@@ -296,25 +296,13 @@ namespace AndroidTVAPI
                 try
                 {
                     ssl.AuthenticateAsClient(host);
+                    cert = new X509Certificate2(ssl.RemoteCertificate);
                 }
-                catch (AuthenticationException e)
+                finally
                 {
-                    Debug.WriteLine(e.Message);
                     ssl.Close();
                     client.Close();
-                    return cert;
                 }
-                catch (Exception e)
-                {
-                    Debug.WriteLine(e.Message);
-                    ssl.Close();
-                    client.Close();
-                    return cert;
-                }
-
-                cert = new X509Certificate2(ssl.RemoteCertificate);
-                ssl.Close();
-                client.Close();
 
                 return cert;
             }
