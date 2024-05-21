@@ -337,10 +337,16 @@ namespace AndroidTVAPI
 
         private static byte[] FromHexString(string hex)
         {
-            return Enumerable.Range(0, hex.Length)
-                             .Where(x => x % 2 == 0)
-                             .Select(x => Convert.ToByte(hex.Substring(x, 2), 16))
-                             .ToArray();
+#if !NETCOREAPP
+            byte[] raw = new byte[hex.Length / 2];
+            for (int i = 0; i < raw.Length; i++)
+            {
+                raw[i] = Convert.ToByte(hex.Substring(i * 2, 2), 16);
+            }
+            return raw;
+#else
+            return Convert.FromHexString(hex);
+#endif
         }
 
         protected override void Dispose(bool disposing)
