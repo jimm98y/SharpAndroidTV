@@ -291,12 +291,18 @@ namespace AndroidTVAPI
                 SslStream ssl = new SslStream(
                     client.GetStream(),
                     false,
-                    new RemoteCertificateValidationCallback((s, c, ch, err) => { return true; }), null);
+                    new RemoteCertificateValidationCallback((s, c, ch, err) =>
+                    {
+                        if (c != null)
+                        {
+                            cert = new X509Certificate2(c);
+                        }
+                        return true;
+                    }), null);
 
                 try
                 {
                     ssl.AuthenticateAsClient(host);
-                    cert = new X509Certificate2(ssl.RemoteCertificate);
                 }
                 finally
                 {
